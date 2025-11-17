@@ -1,7 +1,7 @@
 import argparse, yaml, os, json, torch, torch.nn as nn, torch.optim as optim
 from pathlib import Path
-from m3prime.dataset import MouthDataset, collate, VOCAB
-from m3prime.model_tiny import Text2Mouth
+from m3p.data.dataset import MouthDataset, collate, VOCAB
+from m3p.model.t2mouth import Text2Mouth
 
 def main(cfg):
     torch.manual_seed(cfg["seed"])
