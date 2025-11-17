@@ -1,0 +1,91 @@
+# ============================================
+# M3' default config (Text -> mouth6)
+# ============================================
+
+# 時間刻み [ms] 例: 40ms -> 25fps 相当
+step_ms: 40
+
+paths:
+  # DLC が吐いたランドマーク CSV
+  dlc_csv: "in/dlc_result.csv"
+
+  # DLC->ETL が吐く mouth6 付きタイムライン
+  pose_timeline: "in/pose_timeline.json"
+
+  # faster-whisper の transcript.json（words/segments どちらでもOK）
+  transcript: "in/transcript.json"
+
+  # ETL (build_trainset) が吐く学習用 JSONL
+  train_samples: "in/train_samples.jsonl"
+  val_samples: "in/val_samples.jsonl"
+
+  # 各種ログ・モデル出力・評価メトリクス
+  out_dir: "out/exp_smoke"
+
+# DLC CSV の列名（あなたの 56点スキーマに合わせたもの）
+dlc_columns:
+  # 時刻周り：timestamp は「秒」として扱う
+  timestamp: "timestamp"
+  fps: 25         # frame→t_ms 算出用（必要に応じて）
+  frame: "frame"
+
+  # 口の縦方向（開口度）
+  ulx: "mouth_outer_upper_x"
+  uly: "mouth_outer_upper_y"
+  llx: "mouth_outer_lower_x"
+  lly: "mouth_outer_lower_y"
+
+  # 口角（左右）
+  mlx: "mouth_outer_left_x"
+  mly: "mouth_outer_left_y"
+  mrx: "mouth_outer_right_x"
+  mry: "mouth_outer_right_y"
+
+  # 顔左右アンカー（横幅の正規化用）
+  flx: "contour_left2_x"
+  fly: "contour_left2_y"
+  frx: "contour_right2_x"
+  fry: "contour_right2_y"
+
+  # optional: likelihood 列（存在しない場合は無視される）
+  lk_ul: "mouth_outer_upper_likelihood"
+  lk_ll: "mouth_outer_lower_likelihood"
+  lk_ml: "mouth_outer_left_likelihood"
+  lk_mr: "mouth_outer_right_likelihood"
+
+# τ/ρ 閾値（今はざっくり中庸寄りの値）
+tau: [0.12, 0.25, 0.40]   # 開口度（小 / 中 / 大）の境界
+rho: [0.30, 0.50, 0.70]   # 口幅（狭 / 中 / 広）の境界
+
+# DLC ランドマーク品質とフィルタ
+likelihood_threshold: 0.6
+median_k: 5
+hys_low_keep: 1
+hys_high_keep: 1
+
+dataset:
+  max_len: 160   # 1サンプルの最大文字数（長すぎるものは切り詰め）
+  min_T: 1       # mouth_steps 最低長
+  max_T: 200     # mouth_steps 最大長（長いものは切り詰め or drop）
+
+model:
+  # Text2Mouth (Transformer encoder) 用のハイパーパラメータ
+  d_model: 128
+  n_layers: 4
+  n_heads: 4
+  d_ff: 256
+  dropout: 0.1
+
+train:
+  batch_size: 32
+  num_epochs: 20
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  label_smoothing: 0.05
+  early_stop_patience: 5
+  grad_clip: 1.0
+  num_workers: 2
+  seed: 42
+
+# "cuda" / "cpu" など。Jules 上では "cuda" を指定しておけば OK
+device: "cuda"
