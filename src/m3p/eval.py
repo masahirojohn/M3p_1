@@ -1,5 +1,5 @@
 import argparse, yaml, json, os
-from m3prime.metrics import summarize_sample
+from m3p.utils.metrics import summarize_sample
 import numpy as np
 
 def load_jsonl(p):
