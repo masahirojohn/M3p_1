@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# venv
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Build & dist
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & outputs
+logs/
+out/
+wandb/
+runs/
+checkpoints/
+
+# Data (大きな生データは外部ストレージ or git-lfs 推奨)
+data/*/in/
+data/*/etl/
+!data/smoke/**          # smokeテスト用の超小さいデータだけはOK
+
+# Secrets
+.env
+*.secret
