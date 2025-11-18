@@ -1,0 +1,33 @@
+# data/manifests/day2_min.yaml
+
+sessions:
+  - id: "1_0_1_normal"
+    base_id: "1_0_1"                # ファイル名のベース（変更しない）
+    emo_id: 0                       # M3’ が使う数値ID
+    emo_label: "normal"             # 人間向けラベル
+    audio: "data/raw/audio/1_0_1.wav"
+    transcript: "data/raw/transcript/1_0_1_transcript.json"
+    pose_timeline: "data/pose/1_0_1.pose_timeline.json"
+
+  - id: "1_1_1_smile"
+    base_id: "1_1_1"
+    emo_id: 1
+    emo_label: "smile"
+    audio: "data/raw/audio/1_1_1.wav"
+    transcript: "data/raw/transcript/1_1_1_transcript.json"
+    pose_timeline: "data/pose/1_1_1.pose_timeline.json"
+
+  - id: "3_1_1_sad"
+    base_id: "3_1_1"
+    emo_id: 2
+    emo_label: "sad"
+    audio: "data/raw/audio/3_1_1.wav"
+    transcript: "data/raw/transcript/3_1_1_transcript.json"
+    pose_timeline: "data/pose/3_1_1.pose_timeline.json"
+
+split:
+  train_ids:
+    - "1_0_1_normal"
+    - "1_1_1_smile"
+  val_ids:
+    - "3_1_1_sad"
