@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ★ これを追加
+export PYTHONPATH="$PWD/src:${PYTHONPATH:-}"
+
 # ============================================
 # M3' smoke test (ETL -> train -> infer -> eval)
 # usage: ./scripts/smoke_test.sh [configs/default.yaml]
