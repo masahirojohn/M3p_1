@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "step_ms": 40
+  },
+  "timeline": [
+    {
+      "t_ms": 2000,
+      "mouth6": "a"
+    }
+  ]
+}

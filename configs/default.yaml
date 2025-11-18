@@ -70,10 +70,10 @@ dataset:
 
 model:
   # Text2Mouth (Transformer encoder) 用のハイパーパラメータ
-  d_model: 128
+  emb_dim: 128
   n_layers: 4
   n_heads: 4
-  d_ff: 256
+  ffn_dim: 256
   dropout: 0.1
   ncls: 6
 
