@@ -1,0 +1,47 @@
+# configs/day2_min.yaml
+# ベース：configs/default.yaml を丸ごとコピーした上で、
+# 下記 paths と step_ms だけこの内容に置き換えるイメージです。
+
+paths:
+  # DLC CSV は manifest モードでは使わないが、互換性のため残す
+  dlc_csv: "in/dlc_result.csv"
+
+  # manifest モードでは使わないが、従来モード互換のため残す
+  pose_timeline: "in/pose_timeline.json"
+  transcript: "in/transcript.json"
+
+  # Day2 用：build_trainset が吐く JSONL
+  train_samples: "in/day2/train_samples.jsonl"
+  val_samples: "in/day2/val_samples.jsonl"
+
+  # Day2 用：学習・推論・評価結果を出すディレクトリ
+  out_dir: "out/exp_day2_min"
+
+  # ★ 新規追加：Day2 manifest ファイル
+  manifest: "data/manifests/day2_min.yaml"
+
+# 1ステップの時間幅（25fps → 40ms）
+step_ms: 40
+
+# ここから下は configs/default.yaml の内容をそのままコピペで OK
+# （例：dlc_columns / model / train / eval など）
+
+dlc_columns:
+  # default.yaml にある内容をそのまま
+  # 例:
+  # x_cols: [...]
+  # y_cols: [...]
+  # ...
+  ...
+
+model:
+  # default.yaml と同じ設定（emb_dim, n_layers, など）
+  ...
+
+train:
+  # default.yaml と同じ（batch_size, lr, max_epochs, など）
+  ...
+
+eval:
+  # default.yaml と同じ（メトリクス関連設定など）
+  ...
