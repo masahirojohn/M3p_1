@@ -1,10 +1,13 @@
-# src/m3p/etl/build_trainset.py
 import argparse
 import json
 import unicodedata
 import yaml
 import os
 from pathlib import Path
+
+###########################################################################
+# 既存コード（to_kana, normalize_transcript, chunk_transcript, etc）
+###########################################################################
 
 MOUTHS = ["close", "a", "i", "u", "e", "o"]
 M2ID = {m: i for i, m in enumerate(MOUTHS)}
@@ -35,41 +38,21 @@ def load_json(path: str):
 
 def normalize_transcript(obj):
     """
-    transcript.json の形式を正規化して、
+    transcript.json を正規化して、
       [{start_ms,end_ms,surface,punct,emo_id}, ...]
-    という共通形にする。
-
-    対応フォーマット:
-    A) 既存形式: list[ {start_ms,end_ms,surface,punct?,emo_id?} ]
-    B) faster-whisper形式:
-        {
-          "meta": {...},
-          "segments": [
-            {
-              "segment_id": ...,
-              "text": "...",
-              "start_ms": ...,
-              "end_ms": ...,
-              "words": [
-                {"word": "...", "start_ms": ..., "end_ms": ...}, ...
-              ]
-            },
-            ...
-          ]
-        }
+    の共通形式にする。
     """
-    # A) 既存形式（すでにフラット）
+    # --- 既存形式: list そのまま
     if isinstance(obj, list):
         return obj
 
-    # B) faster-whisper形式
+    # --- faster-whisper 形式
     if isinstance(obj, dict) and "segments" in obj:
         out = []
         for seg in obj.get("segments", []):
             seg_text = (seg.get("text") or "").strip()
             seg_words = seg.get("words") or []
 
-            # セグメント末尾に句読点があれば punct として扱う
             punct_char = ""
             if seg_text and seg_text[-1] in "。！？!?":
                 punct_char = seg_text[-1]
@@ -87,13 +70,12 @@ def normalize_transcript(obj):
                         "end_ms": end_ms,
                         "surface": surface,
                         "punct": punct,
-                        # まだ感情ラベルが無いので neutral で埋める（将来拡張可）
                         "emo_id": "neutral",
                     }
                 )
         return out
 
-    raise ValueError("Unexpected transcript.json format: must be list[...] or dict with 'segments' key")
+    raise ValueError("Unexpected transcript.json format")
 
 
 def chunk_transcript(words, min_ms=300, max_ms=800):
@@ -122,7 +104,7 @@ def chunk_transcript(words, min_ms=300, max_ms=800):
 def resample_steps(mouth_events, t0, t1, step_ms):
     """
     mouth_events: [{"t_ms":..., "mouth6":...}, ...]
-    区間[t0, t1) を step_ms ごとにサンプルして mouth6 ID 配列に変換。
+    区間[t0, t1) を step_ms ごとに mouth6 ID 配列に変換。
     """
     ev = sorted(mouth_events, key=lambda x: x["t_ms"])
     if ev:
@@ -146,24 +128,116 @@ def resample_steps(mouth_events, t0, t1, step_ms):
     return out
 
 
+###########################################################################
+# Day2 manifest モード用：追加ユーティリティ
+###########################################################################
+
+def load_manifest(path: str):
+    """
+    manifest YAML を読んで、
+      - 全セッション dict
+      - train セッション list
+      - val セッション list
+    を返す
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        m = yaml.safe_load(f)
+
+    sessions_by_id = {s["id"]: s for s in m["sessions"]}
+    train_ids = m["split"]["train_ids"]
+    val_ids = m["split"]["val_ids"]
+
+    train_sess = [sessions_by_id[x] for x in train_ids]
+    val_sess = [sessions_by_id[x] for x in val_ids]
+    return train_sess, val_sess
+
+
+def build_item_from_session(sess: dict, step_ms: int):
+    """
+    manifest 内の1セッション定義から M3’ JSONL の1行を作る。
+    """
+    transcript = load_json(sess["transcript"])
+    pose = load_json(sess["pose_timeline"])
+
+    words = normalize_transcript(transcript)
+    mouth_events = pose["timeline"]
+
+    # Day2最小セットなので「1セッション＝1サンプル」
+    t0 = words[0]["start_ms"]
+    t1 = words[-1]["end_ms"]
+
+    text = "".join([w["surface"] + w.get("punct", "") for w in words])
+    kana = to_kana(text)
+    emo_id = sess["emo_id"]
+
+    steps = resample_steps(mouth_events, t0, t1, step_ms)
+
+    return {
+        "id": sess["id"],
+        "base_id": sess.get("base_id"),
+        "emo_id": emo_id,
+        "kana": kana,
+        "T": len(steps),
+        "mouth_steps": steps,
+        "t0_ms": t0,
+        "t1_ms": t1
+    }
+
+
+def build_jsonl_from_sessions(sessions, out_path: Path, step_ms: int):
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as fw:
+        for sess in sessions:
+            item = build_item_from_session(sess, step_ms)
+            fw.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+
+###########################################################################
+# 既存（単一ファイル）モード ＋ manifest モードの2段構え main
+###########################################################################
+
 def main(cfg):
-    paths = cfg["paths"]
+    """
+    config.yaml に manifest が指定されていれば manifest モード。
+    無ければ旧仕様の単一ファイルモードで動作。
+    """
     step_ms = cfg["step_ms"]
 
-    os.makedirs(Path(paths["train_samples"]).parent, exist_ok=True)
-    val_path = paths.get("val_samples")
+    # -----------------------------
+    # (A) manifest モード（Day2以降）
+    # -----------------------------
+    manifest = cfg["paths"].get("manifest")
+    if manifest:
+        print(f"[build_trainset] manifest モード: {manifest}")
+        train_sess, val_sess = load_manifest(manifest)
 
+        out_train = Path(cfg["paths"]["train_samples"])
+        out_val = Path(cfg["paths"]["val_samples"])
+
+        build_jsonl_from_sessions(train_sess, out_train, step_ms)
+        build_jsonl_from_sessions(val_sess, out_val, step_ms)
+
+        print(f"Wrote: train={len(train_sess)}, val={len(val_sess)}")
+        return
+
+    # -----------------------------
+    # (B) 既存（単一ファイル）モード
+    # -----------------------------
+    print("[build_trainset] 単一ファイルモード（従来動作）")
+
+    paths = cfg["paths"]
     raw_tr = load_json(paths["transcript"])
     words = normalize_transcript(raw_tr)
     pose = load_json(paths["pose_timeline"])
     mouth_events = pose["timeline"]
 
+    Path(paths["train_samples"]).parent.mkdir(parents=True, exist_ok=True)
     f_train = open(paths["train_samples"], "w", encoding="utf-8")
-    f_val = open(val_path, "w", encoding="utf-8") if val_path else None
+    f_val = open(paths["val_samples"], "w", encoding="utf-8")
 
     train_cnt = 0
     val_cnt = 0
-    is_first = True  # 最初の1サンプルだけ val に送る簡易split
+    is_first = True
 
     for ch in chunk_transcript(words):
         t0 = ch[0]["start_ms"]
@@ -172,7 +246,7 @@ def main(cfg):
         emo_id = ch[-1].get("emo_id", "neutral")
 
         steps = resample_steps(mouth_events, t0, t1, step_ms)
-        line_obj = {
+        obj = {
             "t0_ms": t0,
             "t1_ms": t1,
             "kana": kana,
@@ -180,9 +254,9 @@ def main(cfg):
             "T": len(steps),
             "mouth_steps": steps,
         }
-        line = json.dumps(line_obj, ensure_ascii=False) + "\n"
+        line = json.dumps(obj, ensure_ascii=False) + "\n"
 
-        if is_first and f_val:
+        if is_first:
             f_val.write(line)
             val_cnt += 1
             is_first = False
@@ -191,9 +265,7 @@ def main(cfg):
             train_cnt += 1
 
     f_train.close()
-    if f_val:
-        f_val.close()
-
+    f_val.close()
     print(f"Wrote samples: train={train_cnt}, val={val_cnt}")
 
 
@@ -201,7 +273,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     args = ap.parse_args()
+
     with open(args.config, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    main(cfg)
 
+    main(cfg)
