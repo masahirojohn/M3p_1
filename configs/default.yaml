@@ -75,6 +75,7 @@ model:
   n_heads: 4
   d_ff: 256
   dropout: 0.1
+  ncls: 6
 
 train:
   batch_size: 32
